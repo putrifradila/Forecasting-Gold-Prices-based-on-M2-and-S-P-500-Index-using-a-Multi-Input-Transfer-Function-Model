@@ -1,0 +1,54 @@
+DATA dataset_saya ;
+INPUT X1 X2 Y;
+DATALINES ;
+13900.3 2823.81 1344.70
+13949.3 2713.83 1317.66
+14012.7 2640.87 1324.00
+...
+20926.9 5096.27 2043.24
+20973.2 5254.35 2232.38
+20958.8 5035.69 2285.57
+21019.9 5277.51 2326.97
+21067.7 5460.48 2325.71
+21094.4 5522.30 2448.10
+21185.8 5648.40 2503.03
+;
+run ;
+
+/* =========================
+ARIMA & TRANSFER FUNCTION
+========================= */
+
+proc arima data = dataset_saya ;
+
+/* identifikasi arima deret Money Stock */
+identify var =X1 (1) ;
+
+/* estimasi parameter model ARIMA X1 */
+estimate p=3 q=2 method =ml;
+run ;
+
+/* identifikasi arima deret input Indeks S&P 500 */
+identify var =X2 (1) ;
+
+/* estimasi parameter model ARIMA X2 */
+estimate p =(7 ,14) q=0 method =ml;
+run ;
+
+/* Fungsi Transfer Multi Input : CCF */
+identify var =Y (1) crosscorr =( X1 (1) X2 (1)) nlag =40;
+run ;
+
+/* estimasi parameter awal fungsi transfer */
+estimate p =(5) q=0
+input =(25 $(1 ,2) /(0) X1 7$ (0) /(0) X2)
+printall plot method =ml;
+
+/* Peramalan Fungsi Transfer */
+forecast out = ramalan lead =18 printall ;
+run ;
+
+/* cek normalitas residual */
+proc univariate data = ramalan normal ;
+var residual ;
+run ;
