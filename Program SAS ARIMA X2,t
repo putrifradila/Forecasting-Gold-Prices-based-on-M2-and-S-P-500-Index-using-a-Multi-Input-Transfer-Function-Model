@@ -1,0 +1,41 @@
+data arima ;
+input X2;
+datalines ;
+2823.81
+2713.83
+2640.87
+2648.05
+2705.27
+2718.37
+2816.29
+...
+5254.35
+5035.69
+5277.51
+5460.48
+5522.30
+5648.40
+;
+run;
+
+/* pembentukan model arima */
+
+proc arima data = arima ;
+
+identify var =X2 (1) ;
+
+estimate p =(7 ,14) q=0 method =ml;
+
+run;
+
+/* peramalan dengan arima */
+
+forecast out = peramalan lead =12;
+
+proc print data = peramalan ;
+
+proc univariate data = peramalan normal ;
+
+var residual ;
+
+run;
