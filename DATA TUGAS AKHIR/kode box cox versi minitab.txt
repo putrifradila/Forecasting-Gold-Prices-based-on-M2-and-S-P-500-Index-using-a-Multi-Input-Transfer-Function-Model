@@ -1,0 +1,116 @@
+import numpy as np
+import scipy.stats as stats
+from scipy.optimize import minimize
+
+# =====================================================================
+# 1. INPUT DATA (M2SL_1, SP_1, EMAS_1)
+# =====================================================================
+
+m2sl_data = np.array([
+    13900.3, 13949.3, 14012.7, 14035.9, 14092.4, 14137.2, 14174.6, 14223.2, 14245.5, 14256.6,
+    14282.8, 14386.8, 14459.7, 14506.3, 14557.5, 14594.7, 14704.4, 14802.8, 14886.8, 14974.4,
+    15047.0, 15184.1, 15296.0, 15347.5, 15427.1, 15493.4, 16033.0, 17065.3, 17932.9, 18184.3,
+    18335.4, 18411.2, 18602.5, 18757.6, 18997.0, 19115.7, 19379.0, 19641.8, 19873.2, 20176.9,
+    20460.4, 20477.8, 20633.3, 20840.9, 20981.0, 21160.6, 21335.5, 21498.5, 21650.1, 21725.2,
+    21787.2, 21769.4, 21719.9, 21651.5, 21652.9, 21638.4, 21536.7, 21461.7, 21406.7, 21290.9,
+    21279.9, 21243.7, 20947.4, 20761.4, 20829.6, 20799.4, 20791.4, 20777.5, 20747.8, 20732.9,
+    20746.4, 20777.8, 20843.7, 20926.9, 20973.2, 20958.8, 21019.9, 21067.7, 21094.4, 21185.8
+])
+
+sp_data = np.array([
+    2823.81, 2713.83, 2640.87, 2648.05, 2705.27, 2718.37, 2816.29, 2901.52, 2913.98, 2711.74,
+    2760.17, 2506.85, 2704.10, 2784.49, 2834.40, 2945.83, 2752.06, 2941.76, 2980.38, 2926.46,
+    2976.74, 3037.56, 3140.98, 3230.78, 3225.52, 2954.22, 2584.59, 2912.43, 3044.31, 3100.29,
+    3271.12, 3500.31, 3363.00, 3269.96, 3621.63, 3756.07, 3714.24, 3811.15, 3972.89, 4181.17,
+    4204.11, 4297.50, 4395.26, 4522.68, 4307.54, 4605.38, 4567.00, 4766.18, 4515.55, 4373.94,
+    4530.41, 4131.93, 4132.15, 3785.38, 4130.29, 3955.00, 3585.62, 3871.98, 4080.11, 3839.50,
+    4076.60, 3970.15, 4109.31, 4169.48, 4179.83, 4450.38, 4588.96, 4507.66, 4288.05, 4193.80,
+    4567.80, 4769.83, 4845.65, 5096.27, 5254.35, 5035.69, 5277.51, 5460.48, 5522.30, 5648.40
+])
+
+emas_data = np.array([
+    1344.70, 1317.66, 1324.00, 1314.95, 1297.92, 1252.25, 1223.41, 1200.71, 1191.69, 1214.14,
+    1221.88, 1282.73, 1320.56, 1312.66, 1291.90, 1283.35, 1305.25, 1409.10, 1413.55, 1519.85,
+    1472.00, 1513.16, 1463.90, 1517.01, 1589.81, 1584.74, 1571.05, 1680.09, 1726.30, 1780.67,
+    1974.69, 1969.75, 1885.44, 1877.95, 1777.02, 1896.49, 1846.09, 1733.49, 1707.01, 1768.59,
+    1906.36, 1769.80, 1813.58, 1813.43, 1756.66, 1782.81, 1773.78, 1828.39, 1796.47, 1907.90,
+    1937.23, 1896.40, 1837.09, 1806.89, 1765.22, 1710.70, 1659.67, 1633.12, 1768.45, 1824.40,
+    1927.88, 1827.15, 1967.90, 1989.65, 1962.30, 1919.57, 1964.19, 1939.74, 1848.31, 1982.70,
+    2035.75, 2062.59, 2037.19, 2043.24, 2232.38, 2285.57, 2326.97, 2325.71, 2448.10, 2503.03
+])
+
+# =====================================================================
+# 2. FUNGSI LOG-LIKELIHOOD BOX-COX (LOGIKA MINITAB SUBGROUP = 1)
+# =====================================================================
+
+def hitung_minitab_llf(lam, y):
+    n = len(y)
+    # Transformasi Box-Cox Terstandardisasi
+    # Menghitung Geometric Mean (Rata-rata Geometrik) dari data asli
+    geometric_mean = np.exp(np.mean(np.log(y)))
+    
+    if lam == 0:
+        w = log_y = np.log(y)
+        # Jika lambda = 0, bentuk terstandardisasi: w = ln(y) * geometric_mean
+        z = log_y * geometric_mean
+    else:
+        w = (y**lam - 1) / lam
+        # Bentuk terstandardisasi untuk lambda != 0
+        z = w / (geometric_mean**(lam - 1))
+        
+    # Hitung Moving Range dari data terstandardisasi (Z)
+    moving_range = np.abs(np.diff(z))
+    mr_bar = np.mean(moving_range)
+    
+    # Estimasi Standar Deviasi lokal ala Minitab Control Chart (d2 untuk n=2 adalah 1.128)
+    sigma_z = mr_bar / 1.128
+    
+    # Fungsi Log-Likelihood murni Minitab
+    log_likelihood = - (n / 2) * np.log(sigma_z**2)
+    return log_likelihood
+
+# =====================================================================
+# 3. FUNGSI UNTUK MENCARI LAMBDA OPTIMAL & RENTANG CI 95%
+# =====================================================================
+
+def analisis_boxcox_variabel(nama_variabel, data_input):
+    # Optimasi nilai lambda (mencari nilai maksimum dengan meminimalkan fungsi negatifnya)
+    fungsi_optimasi = lambda l: -hitung_minitab_llf(l[0], data_input)
+    hasil_optimasi = minimize(fungsi_optimasi, x0=[1.0], method='Nelder-Mead')
+    
+    lambda_optimal = hasil_optimasi.x[0]
+    max_llf = hitung_minitab_llf(lambda_optimal, data_input)
+    
+    # Menghitung batas kritis Chi-Square untuk Interval Kepercayaan 95% (df=1)
+    # Nilai kritis: Max Log-Likelihood - 1.9207
+    nilai_kritis_llf = max_llf - stats.chi2.ppf(0.95, df=1) / 2
+    
+    # Grid search untuk mencari batas bawah dan batas atas rentang CI
+    grup_lambda = np.linspace(-4, 5, 5000)
+    llf_grup = [hitung_minitab_llf(l, data_input) for l in grup_lambda]
+    
+    # Saring nilai lambda yang masuk dalam batas selang kepercayaan
+    lambda_lolos_ci = [l for l, llf in zip(grup_lambda, llf_grup) if llf >= nilai_kritis_llf]
+    
+    batas_bawah = lambda_lolos_ci[0]
+    batas_atas = lambda_lolos_ci[-1]
+    
+    # Print Hasil Analisis
+    print(f"=== ANALISIS BOX-COX VARIABEL: {nama_variabel} ===")
+    print(f"Optimal Lambda (λ)     : {lambda_optimal:.4f}")
+    print(f"Rentang (95% CI)       : [{batas_bawah:.2f} , {batas_atas:.2f}]")
+    
+    # Cek apakah angka 1 (tanpa transformasi) masuk dalam rentang
+    if batas_bawah <= 1.0 <= batas_atas:
+        print("Kesimpulan             : Nilai 1 MASUK dalam rentang CI. (Minitab Rounded Value = 1.0 -> Tidak butuh transformasi)")
+    else:
+        print("Kesimpulan             : Nilai 1 TIDAK MASUK dalam rentang CI. (WAJIB Transformasi/Minitab Rounded Value != 1.0)")
+    print("-" * 60 + "\n")
+
+# =====================================================================
+# 4. JALANKAN ANALISIS UNTUK KETIGA VARIABEL
+# =====================================================================
+
+analisis_boxcox_variabel("M2SL_1 (M2 Money Stock)", m2sl_data)
+analisis_boxcox_variabel("SP_1 (Indeks S&P 500)", sp_data)
+analisis_boxcox_variabel("EMAS_1 (Harga Emas Global)", emas_data)
